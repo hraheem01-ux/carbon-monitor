@@ -4,66 +4,142 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carbon Recycle Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #0f172a;
+      background: linear-gradient(180deg, #071633 0%, #081226 100%);
       color: white;
       text-align: center;
-      padding: 20px;
+      padding: 24px;
     }
 
     h1 {
-      margin-bottom: 10px;
+      margin: 10px 0 8px;
+      font-size: 52px;
+      font-weight: 700;
     }
 
     .subtitle {
-      color: #cbd5e1;
+      color: #d6def1;
+      font-size: 20px;
       margin-bottom: 30px;
     }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      max-width: 1000px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      max-width: 1350px;
       margin: auto;
     }
 
     .card {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      background: rgba(29, 43, 72, 0.95);
+      border-radius: 22px;
+      padding: 26px 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      transition: 0.25s ease;
+      border: 2px solid transparent;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
     }
 
     .label {
-      font-size: 14px;
-      color: #94a3b8;
-      margin-bottom: 10px;
+      font-size: 16px;
+      color: #b9c6e6;
+      margin-bottom: 14px;
     }
 
     .value {
-      font-size: 32px;
+      font-size: 56px;
+      font-weight: bold;
+      line-height: 1.1;
+    }
+
+    .unit {
+      font-size: 18px;
+      color: #dbe7ff;
+      margin-top: 8px;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 15px;
       font-weight: bold;
     }
 
-    .small {
-      font-size: 16px;
-      color: #cbd5e1;
-      margin-top: 6px;
+    .good {
+      color: #22c55e;
+      border-color: rgba(34, 197, 94, 0.35);
+    }
+
+    .mid {
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+
+    .bad {
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+
+    .neutral {
+      color: #ffffff;
+    }
+
+    .chart-wrap {
+      max-width: 1350px;
+      margin: 28px auto 0;
+      background: rgba(29, 43, 72, 0.95);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+      text-align: left;
+    }
+
+    .chart-title {
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 14px;
+      color: white;
+      text-align: center;
+    }
+
+    canvas {
+      max-height: 430px;
     }
 
     .footer {
-      margin-top: 24px;
-      color: #94a3b8;
-      font-size: 14px;
+      margin-top: 22px;
+      color: #b9c6e6;
+      font-size: 18px;
     }
 
-    .good { color: #22c55e; }
-    .mid { color: #f59e0b; }
-    .bad { color: #ef4444; }
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 34px;
+      }
+
+      .value {
+        font-size: 42px;
+      }
+
+      .subtitle {
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -71,41 +147,52 @@
   <div class="subtitle">Live sensor readings from anywhere in the world</div>
 
   <div class="grid">
-    <div class="card">
+    <div class="card" id="card-in">
       <div class="label">CO₂ IN</div>
-      <div class="value" id="co2_in">--</div>
-      <div class="small">ppm</div>
+      <div class="value neutral" id="co2_in">--</div>
+      <div class="unit">ppm</div>
+      <div class="status" id="co2_in_status">--</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="card-out">
       <div class="label">CO₂ OUT</div>
-      <div class="value" id="co2_out">--</div>
-      <div class="small">ppm</div>
+      <div class="value neutral" id="co2_out">--</div>
+      <div class="unit">ppm</div>
+      <div class="status" id="co2_out_status">--</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="card-diff">
       <div class="label">Difference</div>
-      <div class="value" id="difference">--</div>
-      <div class="small">ppm</div>
+      <div class="value neutral" id="difference">--</div>
+      <div class="unit">ppm</div>
+      <div class="status" id="difference_status">--</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="card-eff">
       <div class="label">Filter Efficiency</div>
-      <div class="value" id="efficiency">--</div>
-      <div class="small">%</div>
+      <div class="value neutral" id="efficiency">--</div>
+      <div class="unit">%</div>
+      <div class="status" id="efficiency_status">--</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="card-temp">
       <div class="label">Temperature</div>
-      <div class="value" id="temperature">--</div>
-      <div class="small">°C</div>
+      <div class="value neutral" id="temperature">--</div>
+      <div class="unit">°C</div>
+      <div class="status" id="temperature_status">--</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="card-hum">
       <div class="label">Humidity</div>
-      <div class="value" id="humidity">--</div>
-      <div class="small">%</div>
+      <div class="value neutral" id="humidity">--</div>
+      <div class="unit">%</div>
+      <div class="status" id="humidity_status">--</div>
     </div>
+  </div>
+
+  <div class="chart-wrap">
+    <div class="chart-title">Live Trend - Last 30 Readings</div>
+    <canvas id="carbonChart"></canvas>
   </div>
 
   <div class="footer" id="lastUpdate">Last update: --</div>
@@ -114,10 +201,162 @@
     const SUPABASE_URL = "https://khnlwlgrwdizdrsjqoor.supabase.co";
     const SUPABASE_KEY = "sb_publishable__a1n5TOEUd8CwIPH0rrLGA_ADEPJ6tj";
 
-    async function loadLatestReading() {
+    let carbonChart;
+
+    function setCardState(cardId, valueId, statusId, level, statusText) {
+      const card = document.getElementById(cardId);
+      const value = document.getElementById(valueId);
+      const status = document.getElementById(statusId);
+
+      card.classList.remove("good", "mid", "bad");
+      value.classList.remove("good", "mid", "bad", "neutral");
+      status.classList.remove("good", "mid", "bad", "neutral");
+
+      card.classList.add(level);
+      value.classList.add(level);
+      status.classList.add(level);
+      status.textContent = statusText;
+    }
+
+    function classifyCO2(ppm) {
+      if (ppm <= 600) return { level: "good", text: "Excellent air" };
+      if (ppm <= 1000) return { level: "mid", text: "Moderate air" };
+      return { level: "bad", text: "High CO₂" };
+    }
+
+    function classifyEfficiency(eff) {
+      if (eff >= 25) return { level: "good", text: "Strong filter performance" };
+      if (eff >= 10) return { level: "mid", text: "Moderate filter performance" };
+      return { level: "bad", text: "Weak filter performance" };
+    }
+
+    function classifyDifference(diff) {
+      if (diff > 100) return { level: "good", text: "Clear reduction" };
+      if (diff > 20) return { level: "mid", text: "Small reduction" };
+      return { level: "bad", text: "No useful reduction" };
+    }
+
+    function classifyTemperature(temp) {
+      if (temp >= 20 && temp <= 30) return { level: "good", text: "Normal temperature" };
+      if ((temp >= 15 && temp < 20) || (temp > 30 && temp <= 35)) return { level: "mid", text: "Acceptable temperature" };
+      return { level: "bad", text: "Temperature alert" };
+    }
+
+    function classifyHumidity(hum) {
+      if (hum >= 35 && hum <= 60) return { level: "good", text: "Comfort humidity" };
+      if ((hum >= 25 && hum < 35) || (hum > 60 && hum <= 70)) return { level: "mid", text: "Acceptable humidity" };
+      return { level: "bad", text: "Humidity alert" };
+    }
+
+    function updateChart(rows) {
+      const labels = rows.map((_, i) => `${i + 1}`);
+      const inData = rows.map(r => Number(r.co2_in ?? 0));
+      const outData = rows.map(r => Number(r.co2_out ?? 0));
+      const effData = rows.map(r => Number(r.efficiency ?? 0));
+
+      const ctx = document.getElementById("carbonChart").getContext("2d");
+
+      if (carbonChart) {
+        carbonChart.destroy();
+      }
+
+      carbonChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "CO₂ IN",
+              data: inData,
+              borderColor: "#60a5fa",
+              backgroundColor: "rgba(96,165,250,0.15)",
+              tension: 0.3,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 2
+            },
+            {
+              label: "CO₂ OUT",
+              data: outData,
+              borderColor: "#22c55e",
+              backgroundColor: "rgba(34,197,94,0.15)",
+              tension: 0.3,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 2
+            },
+            {
+              label: "Efficiency %",
+              data: effData,
+              borderColor: "#f59e0b",
+              backgroundColor: "rgba(245,158,11,0.15)",
+              tension: 0.3,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 2,
+              yAxisID: "y1"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: "white",
+                font: {
+                  size: 14
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: "#dbe7ff"
+              },
+              grid: {
+                color: "rgba(255,255,255,0.08)"
+              }
+            },
+            y: {
+              position: "left",
+              ticks: {
+                color: "#dbe7ff"
+              },
+              grid: {
+                color: "rgba(255,255,255,0.08)"
+              },
+              title: {
+                display: true,
+                text: "CO₂ ppm",
+                color: "#dbe7ff"
+              }
+            },
+            y1: {
+              position: "right",
+              ticks: {
+                color: "#ffd28a"
+              },
+              grid: {
+                drawOnChartArea: false
+              },
+              title: {
+                display: true,
+                text: "Efficiency %",
+                color: "#ffd28a"
+              }
+            }
+          }
+        }
+      });
+    }
+
+    async function loadReadings() {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=id.desc&limit=1`,
+          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=id.desc&limit=30`,
           {
             headers: {
               apikey: SUPABASE_KEY,
@@ -127,38 +366,50 @@
         );
 
         const data = await res.json();
+        if (!data || !data.length) return;
 
-        if (!data || !data.length) {
-          return;
-        }
+        const latest = data[0];
+        const chartRows = [...data].reverse();
 
-        const row = data[0];
+        const co2In = Number(latest.co2_in ?? 0);
+        const co2Out = Number(latest.co2_out ?? 0);
+        const difference = Number(latest.difference ?? 0);
+        const efficiency = Number(latest.efficiency ?? 0);
+        const temperature = Number(latest.temperature ?? 0);
+        const humidity = Number(latest.humidity ?? 0);
 
-        document.getElementById("co2_in").textContent = row.co2_in ?? "--";
-        document.getElementById("co2_out").textContent = row.co2_out ?? "--";
-        document.getElementById("difference").textContent = row.difference ?? "--";
-        document.getElementById("temperature").textContent = row.temperature ?? "--";
-        document.getElementById("humidity").textContent = row.humidity ?? "--";
+        document.getElementById("co2_in").textContent = co2In || "--";
+        document.getElementById("co2_out").textContent = co2Out || "--";
+        document.getElementById("difference").textContent = difference || 0;
+        document.getElementById("efficiency").textContent = efficiency.toFixed(2);
+        document.getElementById("temperature").textContent = temperature.toFixed(2);
+        document.getElementById("humidity").textContent = humidity.toFixed(1);
 
-        const effEl = document.getElementById("efficiency");
-        const eff = Number(row.efficiency ?? 0);
-        effEl.textContent = isNaN(eff) ? "--" : eff.toFixed(2);
+        const inClass = classifyCO2(co2In);
+        const outClass = classifyCO2(co2Out);
+        const diffClass = classifyDifference(difference);
+        const effClass = classifyEfficiency(efficiency);
+        const tempClass = classifyTemperature(temperature);
+        const humClass = classifyHumidity(humidity);
 
-        effEl.classList.remove("good", "mid", "bad");
-        if (eff >= 20) effEl.classList.add("good");
-        else if (eff >= 5) effEl.classList.add("mid");
-        else effEl.classList.add("bad");
+        setCardState("card-in", "co2_in", "co2_in_status", inClass.level, inClass.text);
+        setCardState("card-out", "co2_out", "co2_out_status", outClass.level, outClass.text);
+        setCardState("card-diff", "difference", "difference_status", diffClass.level, diffClass.text);
+        setCardState("card-eff", "efficiency", "efficiency_status", effClass.level, effClass.text);
+        setCardState("card-temp", "temperature", "temperature_status", tempClass.level, tempClass.text);
+        setCardState("card-hum", "humidity", "humidity_status", humClass.level, humClass.text);
 
         document.getElementById("lastUpdate").textContent =
-          "Last update: " + (row.created_at ?? "--");
+          "Last update: " + (latest.created_at ?? "--");
+
+        updateChart(chartRows);
       } catch (err) {
-        console.error(err);
+        console.error("Load error:", err);
       }
     }
 
-    loadLatestReading();
-    setInterval(loadLatestReading, 5000);
+    loadReadings();
+    setInterval(loadReadings, 5000);
   </script>
 </body>
 </html>
-<!-- update -->
