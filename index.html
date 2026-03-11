@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carbon Recycle Monitor</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #cbd5e1;
+      margin-bottom: 30px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    }
+
+    .label {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+
+    .value {
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    .small {
+      font-size: 16px;
+      color: #cbd5e1;
+      margin-top: 6px;
+    }
+
+    .footer {
+      margin-top: 24px;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    .good { color: #22c55e; }
+    .mid { color: #f59e0b; }
+    .bad { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>Carbon Recycle Monitor</h1>
+  <div class="subtitle">Live sensor readings from anywhere in the world</div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">CO₂ IN</div>
+      <div class="value" id="co2_in">--</div>
+      <div class="small">ppm</div>
+    </div>
+
+    <div class="card">
+      <div class="label">CO₂ OUT</div>
+      <div class="value" id="co2_out">--</div>
+      <div class="small">ppm</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Difference</div>
+      <div class="value" id="difference">--</div>
+      <div class="small">ppm</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Filter Efficiency</div>
+      <div class="value" id="efficiency">--</div>
+      <div class="small">%</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Temperature</div>
+      <div class="value" id="temperature">--</div>
+      <div class="small">°C</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Humidity</div>
+      <div class="value" id="humidity">--</div>
+      <div class="small">%</div>
+    </div>
+  </div>
+
+  <div class="footer" id="lastUpdate">Last update: --</div>
+
+  <script>
+    const SUPABASE_URL = "https://khnlwlgrwdizdrsjqoor.supabase.co";
+    const SUPABASE_KEY = "sb_publishable__a1n5TOEUd8CwIPH0rrLGA_ADEPJ6tj";
+
+    async function loadLatestReading() {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=id.desc&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: `Bearer ${SUPABASE_KEY}`
+            }
+          }
+        );
+
+        const data = await res.json();
+
+        if (!data || !data.length) {
+          return;
+        }
+
+        const row = data[0];
+
+        document.getElementById("co2_in").textContent = row.co2_in ?? "--";
+        document.getElementById("co2_out").textContent = row.co2_out ?? "--";
+        document.getElementById("difference").textContent = row.difference ?? "--";
+        document.getElementById("temperature").textContent = row.temperature ?? "--";
+        document.getElementById("humidity").textContent = row.humidity ?? "--";
+
+        const effEl = document.getElementById("efficiency");
+        const eff = Number(row.efficiency ?? 0);
+        effEl.textContent = isNaN(eff) ? "--" : eff.toFixed(2);
+
+        effEl.classList.remove("good", "mid", "bad");
+        if (eff >= 20) effEl.classList.add("good");
+        else if (eff >= 5) effEl.classList.add("mid");
+        else effEl.classList.add("bad");
+
+        document.getElementById("lastUpdate").textContent =
+          "Last update: " + (row.created_at ?? "--");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadLatestReading();
+    setInterval(loadLatestReading, 5000);
+  </script>
+</body>
+</html>
