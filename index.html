@@ -258,6 +258,13 @@
       <div class="status" id="efficiency_status">--</div>
     </div>
 
+    <div class="card" id="card-avg-eff">
+      <div class="label">Average Efficiency</div>
+      <div class="value neutral" id="avg_efficiency">--</div>
+      <div class="unit">%</div>
+      <div class="status" id="avg_efficiency_status">--</div>
+    </div>
+
     <div class="card" id="card-temp">
       <div class="label">Temperature</div>
       <div class="value neutral" id="temperature">--</div>
@@ -319,6 +326,7 @@
         ["card-out", "co2_out", "co2_out_status"],
         ["card-diff", "difference", "difference_status"],
         ["card-eff", "efficiency", "efficiency_status"],
+        ["card-avg-eff", "avg_efficiency", "avg_efficiency_status"],
         ["card-temp", "temperature", "temperature_status"],
         ["card-hum", "humidity", "humidity_status"]
       ];
@@ -527,6 +535,42 @@
       renderRuntime();
     }
 
+    function getSessionRows(rowsDesc) {
+      if (!rowsDesc || !rowsDesc.length) return [];
+
+      if (!currentSessionStartMs) return [rowsDesc[0]];
+
+      return rowsDesc.filter(row => {
+        const ms = parseTimeMs(row.created_at);
+        return ms !== null && ms >= currentSessionStartMs;
+      });
+    }
+
+    function calculateSessionAverageEfficiency(rowsDesc) {
+      const sessionRows = getSessionRows(rowsDesc);
+
+      if (!sessionRows.length) return null;
+
+      const validRows = sessionRows.filter(row => {
+        const co2In = safeNumber(row.co2_in, NaN);
+        const co2Out = safeNumber(row.co2_out, NaN);
+        return Number.isFinite(co2In) && Number.isFinite(co2Out) && co2In > 0;
+      });
+
+      if (!validRows.length) return null;
+
+      let total = 0;
+
+      validRows.forEach(row => {
+        const co2In = safeNumber(row.co2_in, 0);
+        const co2Out = safeNumber(row.co2_out, 0);
+        const eff = ((co2In - co2Out) / co2In) * 100;
+        total += eff;
+      });
+
+      return total / validRows.length;
+    }
+
     function updateChart(rows) {
       const labels = rows.map((row, i) => {
         if (row.created_at) {
@@ -648,7 +692,7 @@
     async function loadReadings() {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=created_at.desc&limit=100`,
+          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=created_at.desc&limit=300`,
           {
             headers: {
               apikey: SUPABASE_KEY,
@@ -701,11 +745,15 @@
         updateConnectionBanner(connectionInfo);
         updateRuntimeFromLatest(latest, connectionInfo.state);
 
+        const avgEfficiency = calculateSessionAverageEfficiency(data);
+        document.getElementById("avg_efficiency").textContent = formatValue(avgEfficiency, 2);
+
         if (connectionInfo.state === "online") {
           const inClass = classifyCO2(co2In);
           const outClass = classifyCO2(co2Out);
           const diffClass = classifyDifference(difference);
           const effClass = classifyEfficiency(efficiency);
+          const avgEffClass = classifyEfficiency(avgEfficiency ?? 0);
           const tempClass = classifyTemperature(temperature);
           const humClass = classifyHumidity(humidity);
 
@@ -713,6 +761,7 @@
           setCardState("card-out", "co2_out", "co2_out_status", outClass.level, outClass.text);
           setCardState("card-diff", "difference", "difference_status", diffClass.level, diffClass.text);
           setCardState("card-eff", "efficiency", "efficiency_status", effClass.level, effClass.text);
+          setCardState("card-avg-eff", "avg_efficiency", "avg_efficiency_status", avgEffClass.level, "Average for current experiment");
           setCardState("card-temp", "temperature", "temperature_status", tempClass.level, tempClass.text);
           setCardState("card-hum", "humidity", "humidity_status", humClass.level, humClass.text);
         } else if (connectionInfo.state === "stale") {
