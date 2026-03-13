@@ -28,7 +28,37 @@
     .subtitle {
       color: #d6def1;
       font-size: 20px;
-      margin-bottom: 30px;
+      margin-bottom: 12px;
+    }
+
+    .connection-banner {
+      max-width: 1350px;
+      margin: 0 auto 24px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+
+    .connection-banner.online {
+      background: rgba(34, 197, 94, 0.14);
+      border-color: rgba(34, 197, 94, 0.35);
+      color: #86efac;
+    }
+
+    .connection-banner.offline {
+      background: rgba(239, 68, 68, 0.14);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    .connection-banner.stale {
+      background: rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: #fcd34d;
     }
 
     .grid {
@@ -99,6 +129,14 @@
       color: #ffffff;
     }
 
+    .offline-card {
+      border-color: rgba(148, 163, 184, 0.35) !important;
+    }
+
+    .offline-text {
+      color: #94a3b8 !important;
+    }
+
     .chart-wrap {
       max-width: 1350px;
       margin: 28px auto 0;
@@ -139,12 +177,17 @@
       .subtitle {
         font-size: 16px;
       }
+
+      .connection-banner {
+        font-size: 15px;
+      }
     }
   </style>
 </head>
 <body>
   <h1>Carbon Recycle Monitor</h1>
   <div class="subtitle">Live sensor readings from anywhere in the world</div>
+  <div class="connection-banner" id="connectionBanner">Checking sensor connection...</div>
 
   <div class="grid">
     <div class="card" id="card-in">
@@ -201,6 +244,10 @@
     const SUPABASE_URL = "https://khnlwlgrwdizdrsjqoor.supabase.co";
     const SUPABASE_KEY = "sb_publishable__a1n5TOEUd8CwIPH0rrLGA_ADEPJ6tj";
 
+    const ONLINE_THRESHOLD_SEC = 20; // أقل من 20 ثانية = Online
+    const STALE_THRESHOLD_SEC = 60;  // من 20 إلى 60 ثانية = Stale / Delayed
+                                   // أكثر من 60 ثانية = Offline
+
     let carbonChart;
 
     function setCardState(cardId, valueId, statusId, level, statusText) {
@@ -208,14 +255,40 @@
       const value = document.getElementById(valueId);
       const status = document.getElementById(statusId);
 
-      card.classList.remove("good", "mid", "bad");
-      value.classList.remove("good", "mid", "bad", "neutral");
-      status.classList.remove("good", "mid", "bad", "neutral");
+      card.classList.remove("good", "mid", "bad", "offline-card");
+      value.classList.remove("good", "mid", "bad", "neutral", "offline-text");
+      status.classList.remove("good", "mid", "bad", "neutral", "offline-text");
 
       card.classList.add(level);
       value.classList.add(level);
       status.classList.add(level);
       status.textContent = statusText;
+    }
+
+    function setAllCardsOffline(statusText) {
+      const cards = [
+        ["card-in", "co2_in", "co2_in_status"],
+        ["card-out", "co2_out", "co2_out_status"],
+        ["card-diff", "difference", "difference_status"],
+        ["card-eff", "efficiency", "efficiency_status"],
+        ["card-temp", "temperature", "temperature_status"],
+        ["card-hum", "humidity", "humidity_status"]
+      ];
+
+      cards.forEach(([cardId, valueId, statusId]) => {
+        const card = document.getElementById(cardId);
+        const value = document.getElementById(valueId);
+        const status = document.getElementById(statusId);
+
+        card.classList.remove("good", "mid", "bad");
+        value.classList.remove("good", "mid", "bad", "neutral");
+        status.classList.remove("good", "mid", "bad", "neutral");
+
+        card.classList.add("offline-card");
+        value.classList.add("offline-text");
+        status.classList.add("offline-text");
+        status.textContent = statusText;
+      });
     }
 
     function classifyCO2(ppm) {
@@ -248,11 +321,90 @@
       return { level: "bad", text: "Humidity alert" };
     }
 
+    function safeNumber(value, fallback = 0) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function formatValue(value, decimals = 0, fallback = "--") {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
+    }
+
+    function getSecondsSince(dateString) {
+      if (!dateString) return null;
+      const ts = new Date(dateString).getTime();
+      if (Number.isNaN(ts)) return null;
+      return Math.floor((Date.now() - ts) / 1000);
+    }
+
+    function formatAge(seconds) {
+      if (seconds === null || seconds < 0) return "--";
+      if (seconds < 60) return `${seconds}s ago`;
+
+      const minutes = Math.floor(seconds / 60);
+      const remainSec = seconds % 60;
+      if (minutes < 60) return `${minutes}m ${remainSec}s ago`;
+
+      const hours = Math.floor(minutes / 60);
+      const remainMin = minutes % 60;
+      return `${hours}h ${remainMin}m ago`;
+    }
+
+    function getConnectionState(ageSec) {
+      if (ageSec === null) {
+        return {
+          state: "offline",
+          text: "No valid timestamp received"
+        };
+      }
+
+      if (ageSec <= ONLINE_THRESHOLD_SEC) {
+        return {
+          state: "online",
+          text: `Sensor online • latest reading ${formatAge(ageSec)}`
+        };
+      }
+
+      if (ageSec <= STALE_THRESHOLD_SEC) {
+        return {
+          state: "stale",
+          text: `No fresh reading • showing last saved data (${formatAge(ageSec)})`
+        };
+      }
+
+      return {
+        state: "offline",
+        text: `Sensor offline • showing old saved reading (${formatAge(ageSec)})`
+      };
+    }
+
+    function updateConnectionBanner(connectionInfo) {
+      const banner = document.getElementById("connectionBanner");
+      banner.classList.remove("online", "offline", "stale");
+      banner.classList.add(connectionInfo.state);
+      banner.textContent = connectionInfo.text;
+    }
+
     function updateChart(rows) {
-      const labels = rows.map((_, i) => `${i + 1}`);
-      const inData = rows.map(r => Number(r.co2_in ?? 0));
-      const outData = rows.map(r => Number(r.co2_out ?? 0));
-      const effData = rows.map(r => Number(r.efficiency ?? 0));
+      const labels = rows.map((row, i) => {
+        if (row.created_at) {
+          const d = new Date(row.created_at);
+          if (!Number.isNaN(d.getTime())) {
+            return d.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit"
+            });
+          }
+        }
+        return `${i + 1}`;
+      });
+
+      const inData = rows.map(r => safeNumber(r.co2_in, 0));
+      const outData = rows.map(r => safeNumber(r.co2_out, 0));
+      const effData = rows.map(r => safeNumber(r.efficiency, 0));
 
       const ctx = document.getElementById("carbonChart").getContext("2d");
 
@@ -356,7 +508,7 @@
     async function loadReadings() {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=id.desc&limit=30`,
+          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=created_at.desc&limit=30`,
           {
             headers: {
               apikey: SUPABASE_KEY,
@@ -365,46 +517,75 @@
           }
         );
 
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
         const data = await res.json();
-        if (!data || !data.length) return;
+        if (!data || !data.length) {
+          document.getElementById("lastUpdate").textContent = "Last update: no data";
+          updateConnectionBanner({
+            state: "offline",
+            text: "No readings found in database"
+          });
+          return;
+        }
 
         const latest = data[0];
         const chartRows = [...data].reverse();
 
-        const co2In = Number(latest.co2_in ?? 0);
-        const co2Out = Number(latest.co2_out ?? 0);
-        const difference = Number(latest.difference ?? 0);
-        const efficiency = Number(latest.efficiency ?? 0);
-        const temperature = Number(latest.temperature ?? 0);
-        const humidity = Number(latest.humidity ?? 0);
+        const co2In = safeNumber(latest.co2_in, NaN);
+        const co2Out = safeNumber(latest.co2_out, NaN);
+        const difference = safeNumber(latest.difference, NaN);
+        const efficiency = safeNumber(latest.efficiency, NaN);
+        const temperature = safeNumber(latest.temperature, NaN);
+        const humidity = safeNumber(latest.humidity, NaN);
 
-        document.getElementById("co2_in").textContent = co2In || "--";
-        document.getElementById("co2_out").textContent = co2Out || "--";
-        document.getElementById("difference").textContent = difference || 0;
-        document.getElementById("efficiency").textContent = efficiency.toFixed(2);
-        document.getElementById("temperature").textContent = temperature.toFixed(2);
-        document.getElementById("humidity").textContent = humidity.toFixed(1);
+        document.getElementById("co2_in").textContent = formatValue(co2In, 0);
+        document.getElementById("co2_out").textContent = formatValue(co2Out, 0);
+        document.getElementById("difference").textContent = formatValue(difference, 0, "0");
+        document.getElementById("efficiency").textContent = formatValue(efficiency, 2);
+        document.getElementById("temperature").textContent = formatValue(temperature, 2);
+        document.getElementById("humidity").textContent = formatValue(humidity, 1);
 
-        const inClass = classifyCO2(co2In);
-        const outClass = classifyCO2(co2Out);
-        const diffClass = classifyDifference(difference);
-        const effClass = classifyEfficiency(efficiency);
-        const tempClass = classifyTemperature(temperature);
-        const humClass = classifyHumidity(humidity);
+        const ageSec = getSecondsSince(latest.created_at);
+        const connectionInfo = getConnectionState(ageSec);
 
-        setCardState("card-in", "co2_in", "co2_in_status", inClass.level, inClass.text);
-        setCardState("card-out", "co2_out", "co2_out_status", outClass.level, outClass.text);
-        setCardState("card-diff", "difference", "difference_status", diffClass.level, diffClass.text);
-        setCardState("card-eff", "efficiency", "efficiency_status", effClass.level, effClass.text);
-        setCardState("card-temp", "temperature", "temperature_status", tempClass.level, tempClass.text);
-        setCardState("card-hum", "humidity", "humidity_status", humClass.level, humClass.text);
+        updateConnectionBanner(connectionInfo);
+
+        if (connectionInfo.state === "online") {
+          const inClass = classifyCO2(co2In);
+          const outClass = classifyCO2(co2Out);
+          const diffClass = classifyDifference(difference);
+          const effClass = classifyEfficiency(efficiency);
+          const tempClass = classifyTemperature(temperature);
+          const humClass = classifyHumidity(humidity);
+
+          setCardState("card-in", "co2_in", "co2_in_status", inClass.level, inClass.text);
+          setCardState("card-out", "co2_out", "co2_out_status", outClass.level, outClass.text);
+          setCardState("card-diff", "difference", "difference_status", diffClass.level, diffClass.text);
+          setCardState("card-eff", "efficiency", "efficiency_status", effClass.level, effClass.text);
+          setCardState("card-temp", "temperature", "temperature_status", tempClass.level, tempClass.text);
+          setCardState("card-hum", "humidity", "humidity_status", humClass.level, humClass.text);
+        } else if (connectionInfo.state === "stale") {
+          setAllCardsOffline("Stale reading");
+        } else {
+          setAllCardsOffline("Sensor offline");
+        }
 
         document.getElementById("lastUpdate").textContent =
-          "Last update: " + (latest.created_at ?? "--");
+          "Last update: " + (latest.created_at ?? "--") +
+          (ageSec !== null ? ` • ${formatAge(ageSec)}` : "");
 
         updateChart(chartRows);
       } catch (err) {
         console.error("Load error:", err);
+        updateConnectionBanner({
+          state: "offline",
+          text: "Connection error while loading data"
+        });
+        setAllCardsOffline("Connection error");
+        document.getElementById("lastUpdate").textContent = "Last update: failed to load";
       }
     }
 
