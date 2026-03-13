@@ -286,16 +286,17 @@
 
     const ONLINE_THRESHOLD_SEC = 20;
     const STALE_THRESHOLD_SEC = 60;
-
-    // إذا كان الفرق بين قراءتين متتاليتين أكبر من هذا،
-    // نعتبر أن جلسة جديدة بدأت
     const SESSION_BREAK_SEC = 90;
 
     let carbonChart;
     let runtimeTimer = null;
+
     let currentSessionStartMs = null;
     let currentSessionEndMs = null;
     let currentConnectionState = "offline";
+
+    let lastSeenReadingMs = null;
+    let sessionLocked = false;
 
     function setCardState(cardId, valueId, statusId, level, statusText) {
       const card = document.getElementById(cardId);
@@ -417,12 +418,6 @@
       ].join(":");
     }
 
-    function formatDateTime(dateString) {
-      const d = new Date(dateString);
-      if (Number.isNaN(d.getTime())) return dateString || "--";
-      return d.toLocaleString();
-    }
-
     function getConnectionState(ageSec) {
       if (ageSec === null) {
         return {
@@ -458,52 +453,22 @@
       banner.textContent = connectionInfo.text;
     }
 
-    function findCurrentSession(rowsDesc) {
-      if (!rowsDesc || !rowsDesc.length) return null;
-
-      const sessionRows = [rowsDesc[0]];
-
-      for (let i = 1; i < rowsDesc.length; i++) {
-        const newerMs = parseTimeMs(rowsDesc[i - 1].created_at);
-        const olderMs = parseTimeMs(rowsDesc[i].created_at);
-
-        if (newerMs === null || olderMs === null) break;
-
-        const gapSec = Math.abs(newerMs - olderMs) / 1000;
-
-        if (gapSec <= SESSION_BREAK_SEC) {
-          sessionRows.push(rowsDesc[i]);
-        } else {
-          break;
-        }
-      }
-
-      const latestRow = sessionRows[0];
-      const oldestRow = sessionRows[sessionRows.length - 1];
-
-      return {
-        startMs: parseTimeMs(oldestRow.created_at),
-        endMs: parseTimeMs(latestRow.created_at),
-        startAt: oldestRow.created_at,
-        endAt: latestRow.created_at,
-        count: sessionRows.length
-      };
-    }
-
     function renderRuntime() {
       const runtimeValue = document.getElementById("runtimeValue");
       const runtimeSub = document.getElementById("runtimeSub");
 
-      if (!currentSessionStartMs || !currentSessionEndMs) {
+      if (!currentSessionStartMs) {
         runtimeValue.textContent = "--:--:--";
         runtimeSub.textContent = "Waiting for experiment data...";
         return;
       }
 
-      let endMs = currentSessionEndMs;
+      let endMs;
 
       if (currentConnectionState === "online" || currentConnectionState === "stale") {
         endMs = Date.now();
+      } else {
+        endMs = currentSessionEndMs || currentSessionStartMs;
       }
 
       const durationSec = Math.max(0, Math.floor((endMs - currentSessionStartMs) / 1000));
@@ -514,10 +479,10 @@
           `Experiment running • started at ${new Date(currentSessionStartMs).toLocaleString()}`;
       } else if (currentConnectionState === "stale") {
         runtimeSub.textContent =
-          `Last session still recent • started at ${new Date(currentSessionStartMs).toLocaleString()}`;
+          `Reading delayed • started at ${new Date(currentSessionStartMs).toLocaleString()}`;
       } else {
         runtimeSub.textContent =
-          `Experiment stopped • started at ${new Date(currentSessionStartMs).toLocaleString()} • ended at ${new Date(currentSessionEndMs).toLocaleString()}`;
+          `Experiment stopped • started at ${new Date(currentSessionStartMs).toLocaleString()} • ended at ${new Date(currentSessionEndMs || currentSessionStartMs).toLocaleString()}`;
       }
     }
 
@@ -526,19 +491,38 @@
       runtimeTimer = setInterval(renderRuntime, 1000);
     }
 
-    function updateRuntimeFromData(rowsDesc, connectionState) {
-      const session = findCurrentSession(rowsDesc);
+    function updateRuntimeFromLatest(latestRow, connectionState) {
+      const latestMs = parseTimeMs(latestRow?.created_at);
 
-      if (!session || !session.startMs || !session.endMs) {
-        currentSessionStartMs = null;
-        currentSessionEndMs = null;
+      if (latestMs === null) {
         currentConnectionState = "offline";
         renderRuntime();
         return;
       }
 
-      currentSessionStartMs = session.startMs;
-      currentSessionEndMs = session.endMs;
+      if (!sessionLocked || currentSessionStartMs === null) {
+        currentSessionStartMs = latestMs;
+        currentSessionEndMs = latestMs;
+        lastSeenReadingMs = latestMs;
+        currentConnectionState = connectionState;
+        sessionLocked = true;
+        renderRuntime();
+        return;
+      }
+
+      if (lastSeenReadingMs !== null && latestMs > lastSeenReadingMs) {
+        const gapSec = (latestMs - lastSeenReadingMs) / 1000;
+
+        if (gapSec > SESSION_BREAK_SEC) {
+          currentSessionStartMs = latestMs;
+          currentSessionEndMs = latestMs;
+        } else {
+          currentSessionEndMs = latestMs;
+        }
+
+        lastSeenReadingMs = latestMs;
+      }
+
       currentConnectionState = connectionState;
       renderRuntime();
     }
@@ -688,6 +672,8 @@
           currentSessionStartMs = null;
           currentSessionEndMs = null;
           currentConnectionState = "offline";
+          sessionLocked = false;
+          lastSeenReadingMs = null;
           renderRuntime();
           return;
         }
@@ -713,7 +699,7 @@
         const connectionInfo = getConnectionState(ageSec);
 
         updateConnectionBanner(connectionInfo);
-        updateRuntimeFromData(data, connectionInfo.state);
+        updateRuntimeFromLatest(latest, connectionInfo.state);
 
         if (connectionInfo.state === "online") {
           const inClass = classifyCO2(co2In);
