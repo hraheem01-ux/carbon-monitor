@@ -1,796 +1,295 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carbon Recycle Monitor</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 20px;
     }
 
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(180deg, #071633 0%, #081226 100%);
-      color: white;
-      text-align: center;
-      padding: 24px;
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
     }
 
     h1 {
-      margin: 10px 0 8px;
-      font-size: 52px;
-      font-weight: 700;
-    }
-
-    .subtitle {
-      color: #d6def1;
-      font-size: 20px;
-      margin-bottom: 12px;
-    }
-
-    .connection-banner {
-      max-width: 1350px;
-      margin: 0 auto 18px;
-      padding: 14px 18px;
-      border-radius: 16px;
-      font-size: 17px;
-      font-weight: bold;
-      background: rgba(255, 255, 255, 0.08);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      color: #ffffff;
-    }
-
-    .connection-banner.online {
-      background: rgba(34, 197, 94, 0.14);
-      border-color: rgba(34, 197, 94, 0.35);
-      color: #86efac;
-    }
-
-    .connection-banner.offline {
-      background: rgba(239, 68, 68, 0.14);
-      border-color: rgba(239, 68, 68, 0.35);
-      color: #fca5a5;
-    }
-
-    .connection-banner.stale {
-      background: rgba(245, 158, 11, 0.14);
-      border-color: rgba(245, 158, 11, 0.35);
-      color: #fcd34d;
-    }
-
-    .runtime-box {
-      max-width: 1350px;
-      margin: 0 auto 24px;
-      padding: 18px 20px;
-      border-radius: 18px;
-      background: rgba(29, 43, 72, 0.95);
-      border: 2px solid rgba(96, 165, 250, 0.18);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
-    }
-
-    .runtime-title {
-      font-size: 16px;
-      color: #b9c6e6;
-      margin-bottom: 8px;
-    }
-
-    .runtime-value {
-      font-size: 38px;
-      font-weight: 700;
-      color: #ffffff;
-      line-height: 1.2;
-    }
-
-    .runtime-sub {
-      margin-top: 8px;
-      font-size: 15px;
-      color: #d6def1;
+      text-align: center;
+      margin-bottom: 24px;
     }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 18px;
-      max-width: 1350px;
-      margin: auto;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
     }
 
     .card {
-      background: rgba(29, 43, 72, 0.95);
-      border-radius: 22px;
-      padding: 26px 18px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
-      min-height: 160px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      transition: 0.25s ease;
-      border: 2px solid transparent;
-    }
-
-    .card:hover {
-      transform: translateY(-2px);
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
     }
 
     .label {
-      font-size: 16px;
-      color: #b9c6e6;
-      margin-bottom: 14px;
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 8px;
     }
 
     .value {
-      font-size: 56px;
+      font-size: 32px;
       font-weight: bold;
-      line-height: 1.1;
     }
 
     .unit {
-      font-size: 18px;
-      color: #dbe7ff;
+      font-size: 16px;
+      opacity: 0.8;
+      margin-right: 6px;
+    }
+
+    .sub {
       margin-top: 8px;
+      font-size: 13px;
+      opacity: 0.75;
     }
 
     .status {
-      margin-top: 10px;
-      font-size: 15px;
-      font-weight: bold;
-    }
-
-    .good {
-      color: #22c55e;
-      border-color: rgba(34, 197, 94, 0.35);
-    }
-
-    .mid {
-      color: #f59e0b;
-      border-color: rgba(245, 158, 11, 0.35);
-    }
-
-    .bad {
-      color: #ef4444;
-      border-color: rgba(239, 68, 68, 0.35);
-    }
-
-    .neutral {
-      color: #ffffff;
-    }
-
-    .offline-card {
-      border-color: rgba(148, 163, 184, 0.35) !important;
-    }
-
-    .offline-text {
-      color: #94a3b8 !important;
-    }
-
-    .chart-wrap {
-      max-width: 1350px;
-      margin: 28px auto 0;
-      background: rgba(29, 43, 72, 0.95);
-      border-radius: 22px;
-      padding: 24px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
-      text-align: left;
-    }
-
-    .chart-title {
-      font-size: 22px;
-      font-weight: bold;
-      margin-bottom: 14px;
-      color: white;
       text-align: center;
+      margin-top: 20px;
+      opacity: 0.8;
+      font-size: 14px;
     }
 
-    canvas {
-      max-height: 430px;
+    .good { color: #22c55e; }
+    .warn { color: #f59e0b; }
+    .bad  { color: #ef4444; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      background: #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
     }
 
-    .footer {
-      margin-top: 22px;
-      color: #b9c6e6;
-      font-size: 18px;
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
 
-    @media (max-width: 768px) {
-      h1 {
-        font-size: 34px;
-      }
+    th {
+      background: #334155;
+    }
 
-      .value {
-        font-size: 42px;
-      }
-
-      .subtitle {
-        font-size: 16px;
-      }
-
-      .connection-banner {
-        font-size: 15px;
-      }
-
-      .runtime-value {
-        font-size: 28px;
-      }
+    .footer-note {
+      margin-top: 18px;
+      font-size: 13px;
+      opacity: 0.75;
+      text-align: center;
     }
   </style>
 </head>
 <body>
-  <h1>Carbon Recycle Monitor</h1>
-  <div class="subtitle">Live sensor readings from anywhere in the world</div>
+  <div class="container">
+    <h1>مراقبة التقاط ثاني أكسيد الكربون</h1>
 
-  <div class="connection-banner" id="connectionBanner">Checking sensor connection...</div>
+    <div class="grid">
+      <div class="card">
+        <div class="label">CO₂ عند الدخول</div>
+        <div class="value" id="inletCo2">-- <span class="unit">ppm</span></div>
+        <div class="sub" id="inletTime">--</div>
+      </div>
 
-  <div class="runtime-box">
-    <div class="runtime-title">Experiment Runtime</div>
-    <div class="runtime-value" id="runtimeValue">--:--:--</div>
-    <div class="runtime-sub" id="runtimeSub">Waiting for experiment data...</div>
+      <div class="card">
+        <div class="label">CO₂ عند الخروج</div>
+        <div class="value" id="outletCo2">-- <span class="unit">ppm</span></div>
+        <div class="sub" id="outletTime">--</div>
+      </div>
+
+      <div class="card">
+        <div class="label">الفرق</div>
+        <div class="value" id="difference">-- <span class="unit">ppm</span></div>
+        <div class="sub">inlet - outlet</div>
+      </div>
+
+      <div class="card">
+        <div class="label">الكفاءة الحالية</div>
+        <div class="value" id="efficiency">-- <span class="unit">%</span></div>
+        <div class="sub" id="efficiencyStatus">--</div>
+      </div>
+
+      <div class="card">
+        <div class="label">درجة الحرارة</div>
+        <div class="value" id="temperature">-- <span class="unit">°C</span></div>
+        <div class="sub">من حساس الخروج</div>
+      </div>
+
+      <div class="card">
+        <div class="label">الرطوبة</div>
+        <div class="value" id="humidity">-- <span class="unit">%</span></div>
+        <div class="sub">من حساس الخروج</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>الموقع</th>
+          <th>الجهاز</th>
+          <th>الحساس</th>
+          <th>CO₂</th>
+          <th>الحرارة</th>
+          <th>الرطوبة</th>
+          <th>الوقت</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>الدخول</td>
+          <td id="inletDevice">--</td>
+          <td id="inletSensor">--</td>
+          <td id="inletTableCo2">--</td>
+          <td>--</td>
+          <td>--</td>
+          <td id="inletTableTime">--</td>
+        </tr>
+        <tr>
+          <td>الخروج</td>
+          <td id="outletDevice">--</td>
+          <td id="outletSensor">--</td>
+          <td id="outletTableCo2">--</td>
+          <td id="outletTableTemp">--</td>
+          <td id="outletTableHum">--</td>
+          <td id="outletTableTime">--</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="status" id="status">جاري التحميل...</div>
+    <div class="footer-note">بدون معايرة حالياً — سيتم إضافة المعايرة لاحقًا</div>
   </div>
-
-  <div class="grid">
-    <div class="card" id="card-in">
-      <div class="label">CO₂ IN</div>
-      <div class="value neutral" id="co2_in">--</div>
-      <div class="unit">ppm</div>
-      <div class="status" id="co2_in_status">--</div>
-    </div>
-
-    <div class="card" id="card-out">
-      <div class="label">CO₂ OUT</div>
-      <div class="value neutral" id="co2_out">--</div>
-      <div class="unit">ppm</div>
-      <div class="status" id="co2_out_status">--</div>
-    </div>
-
-    <div class="card" id="card-diff">
-      <div class="label">Difference</div>
-      <div class="value neutral" id="difference">--</div>
-      <div class="unit">ppm</div>
-      <div class="status" id="difference_status">--</div>
-    </div>
-
-    <div class="card" id="card-eff">
-      <div class="label">Filter Efficiency</div>
-      <div class="value neutral" id="efficiency">--</div>
-      <div class="unit">%</div>
-      <div class="status" id="efficiency_status">--</div>
-    </div>
-
-    <div class="card" id="card-avg-eff">
-      <div class="label">Average Efficiency</div>
-      <div class="value neutral" id="avg_efficiency">--</div>
-      <div class="unit">%</div>
-      <div class="status" id="avg_efficiency_status">--</div>
-    </div>
-
-    <div class="card" id="card-temp">
-      <div class="label">Temperature</div>
-      <div class="value neutral" id="temperature">--</div>
-      <div class="unit">°C</div>
-      <div class="status" id="temperature_status">--</div>
-    </div>
-
-    <div class="card" id="card-hum">
-      <div class="label">Humidity</div>
-      <div class="value neutral" id="humidity">--</div>
-      <div class="unit">%</div>
-      <div class="status" id="humidity_status">--</div>
-    </div>
-  </div>
-
-  <div class="chart-wrap">
-    <div class="chart-title">Live Trend - Last 30 Readings</div>
-    <canvas id="carbonChart"></canvas>
-  </div>
-
-  <div class="footer" id="lastUpdate">Last update: --</div>
 
   <script>
     const SUPABASE_URL = "https://khnlwlgrwdizdrsjqoor.supabase.co";
     const SUPABASE_KEY = "sb_publishable__a1n5TOEUd8CwIPH0rrLGA_ADEPJ6tj";
 
-    const ONLINE_THRESHOLD_SEC = 20;
-    const STALE_THRESHOLD_SEC = 60;
-    const SESSION_BREAK_SEC = 90;
-
-    let carbonChart;
-    let runtimeTimer = null;
-
-    let currentSessionStartMs = null;
-    let currentSessionEndMs = null;
-    let currentConnectionState = "offline";
-
-    let lastSeenReadingMs = null;
-    let sessionLocked = false;
-
-    function setCardState(cardId, valueId, statusId, level, statusText) {
-      const card = document.getElementById(cardId);
-      const value = document.getElementById(valueId);
-      const status = document.getElementById(statusId);
-
-      card.classList.remove("good", "mid", "bad", "offline-card");
-      value.classList.remove("good", "mid", "bad", "neutral", "offline-text");
-      status.classList.remove("good", "mid", "bad", "neutral", "offline-text");
-
-      card.classList.add(level);
-      value.classList.add(level);
-      status.classList.add(level);
-      status.textContent = statusText;
+    function formatTime(ts) {
+      if (!ts) return "--";
+      return new Date(ts).toLocaleString("ar-SA");
     }
 
-    function setAllCardsOffline(statusText) {
-      const cards = [
-        ["card-in", "co2_in", "co2_in_status"],
-        ["card-out", "co2_out", "co2_out_status"],
-        ["card-diff", "difference", "difference_status"],
-        ["card-eff", "efficiency", "efficiency_status"],
-        ["card-avg-eff", "avg_efficiency", "avg_efficiency_status"],
-        ["card-temp", "temperature", "temperature_status"],
-        ["card-hum", "humidity", "humidity_status"]
-      ];
-
-      cards.forEach(([cardId, valueId, statusId]) => {
-        const card = document.getElementById(cardId);
-        const value = document.getElementById(valueId);
-        const status = document.getElementById(statusId);
-
-        card.classList.remove("good", "mid", "bad");
-        value.classList.remove("good", "mid", "bad", "neutral");
-        status.classList.remove("good", "mid", "bad", "neutral");
-
-        card.classList.add("offline-card");
-        value.classList.add("offline-text");
-        status.classList.add("offline-text");
-        status.textContent = statusText;
-      });
+    function efficiencyClass(value) {
+      if (value >= 50) return "good";
+      if (value >= 20) return "warn";
+      return "bad";
     }
 
-    function classifyCO2(ppm) {
-      if (ppm <= 600) return { level: "good", text: "Excellent air" };
-      if (ppm <= 1000) return { level: "mid", text: "Moderate air" };
-      return { level: "bad", text: "High CO₂" };
+    function efficiencyText(value) {
+      if (value >= 50) return "كفاءة ممتازة";
+      if (value >= 20) return "كفاءة متوسطة";
+      return "كفاءة منخفضة";
     }
 
-    function classifyEfficiency(eff) {
-      if (eff >= 25) return { level: "good", text: "Strong filter performance" };
-      if (eff >= 10) return { level: "mid", text: "Moderate filter performance" };
-      return { level: "bad", text: "Weak filter performance" };
-    }
+    async function fetchLatestReading(position) {
+      const url =
+        `${SUPABASE_URL}/rest/v1/carbon_readings` +
+        `?sensor_position=eq.${position}` +
+        `&select=*` +
+        `&order=created_at.desc` +
+        `&limit=1`;
 
-    function classifyDifference(diff) {
-      if (diff > 100) return { level: "good", text: "Clear reduction" };
-      if (diff > 20) return { level: "mid", text: "Small reduction" };
-      return { level: "bad", text: "No useful reduction" };
-    }
-
-    function classifyTemperature(temp) {
-      if (temp >= 20 && temp <= 30) return { level: "good", text: "Normal temperature" };
-      if ((temp >= 15 && temp < 20) || (temp > 30 && temp <= 35)) return { level: "mid", text: "Acceptable temperature" };
-      return { level: "bad", text: "Temperature alert" };
-    }
-
-    function classifyHumidity(hum) {
-      if (hum >= 35 && hum <= 60) return { level: "good", text: "Comfort humidity" };
-      if ((hum >= 25 && hum < 35) || (hum > 60 && hum <= 70)) return { level: "mid", text: "Acceptable humidity" };
-      return { level: "bad", text: "Humidity alert" };
-    }
-
-    function safeNumber(value, fallback = 0) {
-      const n = Number(value);
-      return Number.isFinite(n) ? n : fallback;
-    }
-
-    function formatValue(value, decimals = 0, fallback = "--") {
-      const n = Number(value);
-      if (!Number.isFinite(n)) return fallback;
-      return decimals > 0 ? n.toFixed(decimals) : String(Math.round(n));
-    }
-
-    function parseTimeMs(dateString) {
-      if (!dateString) return null;
-      const ms = new Date(dateString).getTime();
-      return Number.isNaN(ms) ? null : ms;
-    }
-
-    function getSecondsSince(dateString) {
-      const ms = parseTimeMs(dateString);
-      if (ms === null) return null;
-      return Math.floor((Date.now() - ms) / 1000);
-    }
-
-    function formatAge(seconds) {
-      if (seconds === null || seconds < 0) return "--";
-      if (seconds < 60) return `${seconds}s ago`;
-
-      const minutes = Math.floor(seconds / 60);
-      const remainSec = seconds % 60;
-      if (minutes < 60) return `${minutes}m ${remainSec}s ago`;
-
-      const hours = Math.floor(minutes / 60);
-      const remainMin = minutes % 60;
-      return `${hours}h ${remainMin}m ago`;
-    }
-
-    function formatDuration(totalSeconds) {
-      const sec = Math.max(0, Math.floor(totalSeconds));
-      const hours = Math.floor(sec / 3600);
-      const minutes = Math.floor((sec % 3600) / 60);
-      const seconds = sec % 60;
-
-      return [
-        String(hours).padStart(2, "0"),
-        String(minutes).padStart(2, "0"),
-        String(seconds).padStart(2, "0")
-      ].join(":");
-    }
-
-    function getConnectionState(ageSec) {
-      if (ageSec === null) {
-        return {
-          state: "offline",
-          text: "No valid timestamp received"
-        };
-      }
-
-      if (ageSec <= ONLINE_THRESHOLD_SEC) {
-        return {
-          state: "online",
-          text: `Sensor online • latest reading ${formatAge(ageSec)}`
-        };
-      }
-
-      if (ageSec <= STALE_THRESHOLD_SEC) {
-        return {
-          state: "stale",
-          text: `No fresh reading • showing last saved data (${formatAge(ageSec)})`
-        };
-      }
-
-      return {
-        state: "offline",
-        text: `Sensor offline • showing old saved reading (${formatAge(ageSec)})`
-      };
-    }
-
-    function updateConnectionBanner(connectionInfo) {
-      const banner = document.getElementById("connectionBanner");
-      banner.classList.remove("online", "offline", "stale");
-      banner.classList.add(connectionInfo.state);
-      banner.textContent = connectionInfo.text;
-    }
-
-    function renderRuntime() {
-      const runtimeValue = document.getElementById("runtimeValue");
-      const runtimeSub = document.getElementById("runtimeSub");
-
-      if (!currentSessionStartMs) {
-        runtimeValue.textContent = "--:--:--";
-        runtimeSub.textContent = "Waiting for experiment data...";
-        return;
-      }
-
-      let endMs;
-
-      if (currentConnectionState === "online" || currentConnectionState === "stale") {
-        endMs = Date.now();
-      } else {
-        endMs = currentSessionEndMs || currentSessionStartMs;
-      }
-
-      const durationSec = Math.max(0, Math.floor((endMs - currentSessionStartMs) / 1000));
-      runtimeValue.textContent = formatDuration(durationSec);
-
-      if (currentConnectionState === "online") {
-        runtimeSub.textContent =
-          `Experiment running • started at ${new Date(currentSessionStartMs).toLocaleString()}`;
-      } else if (currentConnectionState === "stale") {
-        runtimeSub.textContent =
-          `Reading delayed • started at ${new Date(currentSessionStartMs).toLocaleString()}`;
-      } else {
-        runtimeSub.textContent =
-          `Experiment stopped • started at ${new Date(currentSessionStartMs).toLocaleString()} • ended at ${new Date(currentSessionEndMs || currentSessionStartMs).toLocaleString()}`;
-      }
-    }
-
-    function startRuntimeTicker() {
-      if (runtimeTimer) clearInterval(runtimeTimer);
-      runtimeTimer = setInterval(renderRuntime, 1000);
-    }
-
-    function updateRuntimeFromLatest(latestRow, connectionState) {
-      const latestMs = parseTimeMs(latestRow?.created_at);
-
-      if (latestMs === null) {
-        currentConnectionState = "offline";
-        renderRuntime();
-        return;
-      }
-
-      if (!sessionLocked || currentSessionStartMs === null) {
-        currentSessionStartMs = latestMs;
-        currentSessionEndMs = latestMs;
-        lastSeenReadingMs = latestMs;
-        currentConnectionState = connectionState;
-        sessionLocked = true;
-        renderRuntime();
-        return;
-      }
-
-      if (lastSeenReadingMs !== null && latestMs > lastSeenReadingMs) {
-        const gapSec = (latestMs - lastSeenReadingMs) / 1000;
-
-        if (gapSec > SESSION_BREAK_SEC) {
-          currentSessionStartMs = latestMs;
-          currentSessionEndMs = latestMs;
-        } else {
-          currentSessionEndMs = latestMs;
-        }
-
-        lastSeenReadingMs = latestMs;
-      }
-
-      currentConnectionState = connectionState;
-      renderRuntime();
-    }
-
-    function getSessionRows(rowsDesc) {
-      if (!rowsDesc || !rowsDesc.length) return [];
-
-      if (!currentSessionStartMs) return [rowsDesc[0]];
-
-      return rowsDesc.filter(row => {
-        const ms = parseTimeMs(row.created_at);
-        return ms !== null && ms >= currentSessionStartMs;
-      });
-    }
-
-    function calculateSessionAverageEfficiency(rowsDesc) {
-      const sessionRows = getSessionRows(rowsDesc);
-
-      if (!sessionRows.length) return null;
-
-      const validRows = sessionRows.filter(row => {
-        const co2In = safeNumber(row.co2_in, NaN);
-        const co2Out = safeNumber(row.co2_out, NaN);
-        return Number.isFinite(co2In) && Number.isFinite(co2Out) && co2In > 0;
-      });
-
-      if (!validRows.length) return null;
-
-      let total = 0;
-
-      validRows.forEach(row => {
-        const co2In = safeNumber(row.co2_in, 0);
-        const co2Out = safeNumber(row.co2_out, 0);
-        const eff = ((co2In - co2Out) / co2In) * 100;
-        total += eff;
-      });
-
-      return total / validRows.length;
-    }
-
-    function updateChart(rows) {
-      const labels = rows.map((row, i) => {
-        if (row.created_at) {
-          const d = new Date(row.created_at);
-          if (!Number.isNaN(d.getTime())) {
-            return d.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit"
-            });
-          }
-        }
-        return `${i + 1}`;
-      });
-
-      const inData = rows.map(r => safeNumber(r.co2_in, 0));
-      const outData = rows.map(r => safeNumber(r.co2_out, 0));
-      const effData = rows.map(r => safeNumber(r.efficiency, 0));
-
-      const ctx = document.getElementById("carbonChart").getContext("2d");
-
-      if (carbonChart) {
-        carbonChart.destroy();
-      }
-
-      carbonChart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "CO₂ IN",
-              data: inData,
-              borderColor: "#60a5fa",
-              backgroundColor: "rgba(96,165,250,0.15)",
-              tension: 0.3,
-              fill: false,
-              borderWidth: 3,
-              pointRadius: 2
-            },
-            {
-              label: "CO₂ OUT",
-              data: outData,
-              borderColor: "#22c55e",
-              backgroundColor: "rgba(34,197,94,0.15)",
-              tension: 0.3,
-              fill: false,
-              borderWidth: 3,
-              pointRadius: 2
-            },
-            {
-              label: "Efficiency %",
-              data: effData,
-              borderColor: "#f59e0b",
-              backgroundColor: "rgba(245,158,11,0.15)",
-              tension: 0.3,
-              fill: false,
-              borderWidth: 3,
-              pointRadius: 2,
-              yAxisID: "y1"
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              labels: {
-                color: "white",
-                font: {
-                  size: 14
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              ticks: {
-                color: "#dbe7ff"
-              },
-              grid: {
-                color: "rgba(255,255,255,0.08)"
-              }
-            },
-            y: {
-              position: "left",
-              ticks: {
-                color: "#dbe7ff"
-              },
-              grid: {
-                color: "rgba(255,255,255,0.08)"
-              },
-              title: {
-                display: true,
-                text: "CO₂ ppm",
-                color: "#dbe7ff"
-              }
-            },
-            y1: {
-              position: "right",
-              ticks: {
-                color: "#ffd28a"
-              },
-              grid: {
-                drawOnChartArea: false
-              },
-              title: {
-                display: true,
-                text: "Efficiency %",
-                color: "#ffd28a"
-              }
-            }
-          }
+      const res = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
         }
       });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${position}: ${res.status}`);
+      }
+
+      const data = await res.json();
+      return data[0] || null;
     }
 
-    async function loadReadings() {
+    async function loadData() {
+      const status = document.getElementById("status");
+
       try {
-        const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/carbon_readings?select=*&order=created_at.desc&limit=300`,
-          {
-            headers: {
-              apikey: SUPABASE_KEY,
-              Authorization: `Bearer ${SUPABASE_KEY}`
-            }
-          }
-        );
+        status.textContent = "جاري تحديث البيانات...";
 
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
+        const [inlet, outlet] = await Promise.all([
+          fetchLatestReading("inlet"),
+          fetchLatestReading("outlet")
+        ]);
 
-        const data = await res.json();
-
-        if (!data || !data.length) {
-          document.getElementById("lastUpdate").textContent = "Last update: no data";
-          updateConnectionBanner({
-            state: "offline",
-            text: "No readings found in database"
-          });
-          currentSessionStartMs = null;
-          currentSessionEndMs = null;
-          currentConnectionState = "offline";
-          sessionLocked = false;
-          lastSeenReadingMs = null;
-          renderRuntime();
+        if (!inlet || !outlet) {
+          status.textContent = "بانتظار وصول القراءات من الجهازين...";
           return;
         }
 
-        const latest = data[0];
-        const chartRows = [...data].slice(0, 30).reverse();
+        const inletCo2 = Number(inlet.co2 || 0);
+        const outletCo2 = Number(outlet.co2 || 0);
 
-        const co2In = safeNumber(latest.co2_in, NaN);
-        const co2Out = safeNumber(latest.co2_out, NaN);
-        const difference = safeNumber(latest.difference, NaN);
-        const efficiency = safeNumber(latest.efficiency, NaN);
-        const temperature = safeNumber(latest.temperature, NaN);
-        const humidity = safeNumber(latest.humidity, NaN);
+        let difference = inletCo2 - outletCo2;
+        let efficiency = 0;
 
-        document.getElementById("co2_in").textContent = formatValue(co2In, 0);
-        document.getElementById("co2_out").textContent = formatValue(co2Out, 0);
-        document.getElementById("difference").textContent = formatValue(difference, 0, "0");
-        document.getElementById("efficiency").textContent = formatValue(efficiency, 2);
-        document.getElementById("temperature").textContent = formatValue(temperature, 2);
-        document.getElementById("humidity").textContent = formatValue(humidity, 1);
-
-        const ageSec = getSecondsSince(latest.created_at);
-        const connectionInfo = getConnectionState(ageSec);
-
-        updateConnectionBanner(connectionInfo);
-        updateRuntimeFromLatest(latest, connectionInfo.state);
-
-        const avgEfficiency = calculateSessionAverageEfficiency(data);
-        document.getElementById("avg_efficiency").textContent = formatValue(avgEfficiency, 2);
-
-        if (connectionInfo.state === "online") {
-          const inClass = classifyCO2(co2In);
-          const outClass = classifyCO2(co2Out);
-          const diffClass = classifyDifference(difference);
-          const effClass = classifyEfficiency(efficiency);
-          const avgEffClass = classifyEfficiency(avgEfficiency ?? 0);
-          const tempClass = classifyTemperature(temperature);
-          const humClass = classifyHumidity(humidity);
-
-          setCardState("card-in", "co2_in", "co2_in_status", inClass.level, inClass.text);
-          setCardState("card-out", "co2_out", "co2_out_status", outClass.level, outClass.text);
-          setCardState("card-diff", "difference", "difference_status", diffClass.level, diffClass.text);
-          setCardState("card-eff", "efficiency", "efficiency_status", effClass.level, effClass.text);
-          setCardState("card-avg-eff", "avg_efficiency", "avg_efficiency_status", avgEffClass.level, "Average for current experiment");
-          setCardState("card-temp", "temperature", "temperature_status", tempClass.level, tempClass.text);
-          setCardState("card-hum", "humidity", "humidity_status", humClass.level, humClass.text);
-        } else if (connectionInfo.state === "stale") {
-          setAllCardsOffline("Stale reading");
-        } else {
-          setAllCardsOffline("Sensor offline");
+        if (inletCo2 > 0) {
+          efficiency = (difference / inletCo2) * 100;
         }
 
-        document.getElementById("lastUpdate").textContent =
-          "Last update: " + (latest.created_at ?? "--") +
-          (ageSec !== null ? ` • ${formatAge(ageSec)}` : "");
+        if (efficiency < 0) efficiency = 0;
 
-        updateChart(chartRows);
+        document.getElementById("inletCo2").innerHTML = `${inletCo2} <span class="unit">ppm</span>`;
+        document.getElementById("outletCo2").innerHTML = `${outletCo2} <span class="unit">ppm</span>`;
+        document.getElementById("difference").innerHTML = `${difference} <span class="unit">ppm</span>`;
+        document.getElementById("efficiency").innerHTML = `${efficiency.toFixed(2)} <span class="unit">%</span>`;
+
+        const effStatus = document.getElementById("efficiencyStatus");
+        effStatus.textContent = efficiencyText(efficiency);
+        effStatus.className = `sub ${efficiencyClass(efficiency)}`;
+
+        document.getElementById("temperature").innerHTML =
+          `${outlet.temperature != null ? Number(outlet.temperature).toFixed(2) : "--"} <span class="unit">°C</span>`;
+
+        document.getElementById("humidity").innerHTML =
+          `${outlet.humidity != null ? Number(outlet.humidity).toFixed(2) : "--"} <span class="unit">%</span>`;
+
+        document.getElementById("inletTime").textContent = `آخر تحديث: ${formatTime(inlet.created_at)}`;
+        document.getElementById("outletTime").textContent = `آخر تحديث: ${formatTime(outlet.created_at)}`;
+
+        document.getElementById("inletDevice").textContent = inlet.device_id || "--";
+        document.getElementById("inletSensor").textContent = inlet.sensor_type || "--";
+        document.getElementById("inletTableCo2").textContent = inletCo2;
+        document.getElementById("inletTableTime").textContent = formatTime(inlet.created_at);
+
+        document.getElementById("outletDevice").textContent = outlet.device_id || "--";
+        document.getElementById("outletSensor").textContent = outlet.sensor_type || "--";
+        document.getElementById("outletTableCo2").textContent = outletCo2;
+        document.getElementById("outletTableTemp").textContent =
+          outlet.temperature != null ? Number(outlet.temperature).toFixed(2) : "--";
+        document.getElementById("outletTableHum").textContent =
+          outlet.humidity != null ? Number(outlet.humidity).toFixed(2) : "--";
+        document.getElementById("outletTableTime").textContent = formatTime(outlet.created_at);
+
+        status.textContent = "تم التحديث بنجاح";
       } catch (err) {
-        console.error("Load error:", err);
-        updateConnectionBanner({
-          state: "offline",
-          text: "Connection error while loading data"
-        });
-        setAllCardsOffline("Connection error");
-        document.getElementById("lastUpdate").textContent = "Last update: failed to load";
-        currentConnectionState = "offline";
-        renderRuntime();
+        console.error(err);
+        status.textContent = "حصل خطأ أثناء جلب البيانات";
       }
     }
 
-    startRuntimeTicker();
-    loadReadings();
-    setInterval(loadReadings, 5000);
+    loadData();
+    setInterval(loadData, 5000);
   </script>
 </body>
 </html>
