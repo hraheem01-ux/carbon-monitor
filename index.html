@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carbon Recycle Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,7 +15,7 @@
     }
 
     .container {
-      max-width: 1100px;
+      max-width: 1250px;
       margin: 0 auto;
     }
 
@@ -38,13 +39,14 @@
 
     .label {
       font-size: 14px;
-      opacity: 0.8;
+      opacity: 0.85;
       margin-bottom: 8px;
     }
 
     .value {
       font-size: 32px;
       font-weight: bold;
+      transition: color 0.2s ease;
     }
 
     .unit {
@@ -56,19 +58,40 @@
     .sub {
       margin-top: 8px;
       font-size: 13px;
-      opacity: 0.75;
+      opacity: 0.82;
     }
 
     .status {
       text-align: center;
       margin-top: 20px;
-      opacity: 0.8;
+      opacity: 0.85;
       font-size: 14px;
     }
 
     .good { color: #22c55e; }
     .warn { color: #f59e0b; }
     .bad  { color: #ef4444; }
+
+    .chart-card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+      margin-top: 24px;
+    }
+
+    .chart-title {
+      font-size: 18px;
+      margin-bottom: 16px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 420px;
+      width: 100%;
+    }
 
     table {
       width: 100%;
@@ -95,6 +118,17 @@
       opacity: 0.75;
       text-align: center;
     }
+
+    .small-note {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .mono {
+      font-variant-numeric: tabular-nums;
+    }
   </style>
 </head>
 <body>
@@ -104,39 +138,59 @@
     <div class="grid">
       <div class="card">
         <div class="label">CO₂ عند الدخول</div>
-        <div class="value" id="inletCo2">-- <span class="unit">ppm</span></div>
+        <div class="value mono" id="inletCo2">-- <span class="unit">ppm</span></div>
         <div class="sub" id="inletTime">--</div>
       </div>
 
       <div class="card">
         <div class="label">CO₂ عند الخروج</div>
-        <div class="value" id="outletCo2">-- <span class="unit">ppm</span></div>
+        <div class="value mono" id="outletCo2">-- <span class="unit">ppm</span></div>
         <div class="sub" id="outletTime">--</div>
       </div>
 
       <div class="card">
         <div class="label">الفرق</div>
-        <div class="value" id="difference">-- <span class="unit">ppm</span></div>
+        <div class="value mono" id="difference">-- <span class="unit">ppm</span></div>
         <div class="sub">inlet - outlet</div>
       </div>
 
       <div class="card">
         <div class="label">الكفاءة الحالية</div>
-        <div class="value" id="efficiency">-- <span class="unit">%</span></div>
+        <div class="value mono" id="efficiency">-- <span class="unit">%</span></div>
         <div class="sub" id="efficiencyStatus">--</div>
       </div>
 
       <div class="card">
+        <div class="label">متوسط الكفاءة آخر 10 دقائق</div>
+        <div class="value mono" id="avgEfficiency10m">-- <span class="unit">%</span></div>
+        <div class="sub" id="avgEfficiency10mStatus">--</div>
+      </div>
+
+      <div class="card">
+        <div class="label">مدة التجربة الحالية</div>
+        <div class="value mono" id="experimentDuration">--</div>
+        <div class="sub" id="experimentWindow">من أول قراءة إلى آخر قراءة</div>
+      </div>
+
+      <div class="card">
         <div class="label">درجة الحرارة</div>
-        <div class="value" id="temperature">-- <span class="unit">°C</span></div>
+        <div class="value mono" id="temperature">-- <span class="unit">°C</span></div>
         <div class="sub">من حساس الخروج</div>
       </div>
 
       <div class="card">
         <div class="label">الرطوبة</div>
-        <div class="value" id="humidity">-- <span class="unit">%</span></div>
+        <div class="value mono" id="humidity">-- <span class="unit">%</span></div>
         <div class="sub">من حساس الخروج</div>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">آخر 30 قراءة — الداخل والخارج والكفاءة</div>
+      <div class="chart-wrap">
+        <canvas id="historyChart"></canvas>
+      </div>
+      <div class="small-note">الأخضر = الكفاءة % | الأزرق = CO₂ الدخول | البرتقالي = CO₂ الخروج</div>
     </div>
 
     <table>
@@ -174,16 +228,27 @@
     </table>
 
     <div class="status" id="status">جاري التحميل...</div>
-    <div class="footer-note">بدون معايرة حالياً — سيتم إضافة المعايرة لاحقًا</div>
+    <div class="footer-note">تمت إضافة العرض التحليلي للكفاءة والزمن والرسم البياني</div>
   </div>
 
   <script>
     const SUPABASE_URL = "https://khnlwlgrwdizdrsjqoor.supabase.co";
     const SUPABASE_KEY = "sb_publishable__a1n5TOEUd8CwIPH0rrLGA_ADEPJ6tj";
 
+    let historyChart = null;
+
     function formatTime(ts) {
       if (!ts) return "--";
       return new Date(ts).toLocaleString("ar-SA");
+    }
+
+    function formatShortTime(ts) {
+      if (!ts) return "--";
+      return new Date(ts).toLocaleTimeString("ar-SA", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
     }
 
     function efficiencyClass(value) {
@@ -196,6 +261,45 @@
       if (value >= 50) return "كفاءة ممتازة";
       if (value >= 20) return "كفاءة متوسطة";
       return "كفاءة منخفضة";
+    }
+
+    function co2Class(value) {
+      if (value <= 600) return "good";
+      if (value <= 1000) return "warn";
+      return "bad";
+    }
+
+    function differenceClass(value) {
+      if (value <= 20) return "good";
+      if (value <= 80) return "warn";
+      return "bad";
+    }
+
+    function tempClass(value) {
+      if (value <= 30) return "good";
+      if (value <= 38) return "warn";
+      return "bad";
+    }
+
+    function humidityClass(value) {
+      if (value >= 30 && value <= 60) return "good";
+      if ((value >= 20 && value < 30) || (value > 60 && value <= 70)) return "warn";
+      return "bad";
+    }
+
+    function setValueColor(elementId, className) {
+      const el = document.getElementById(elementId);
+      el.classList.remove("good", "warn", "bad");
+      el.classList.add(className);
+    }
+
+    function formatDuration(ms) {
+      if (!ms || ms < 0) return "--";
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
     async function fetchLatestReading(position) {
@@ -221,15 +325,227 @@
       return data[0] || null;
     }
 
+    async function fetchReadings(position, limit = 120) {
+      const url =
+        `${SUPABASE_URL}/rest/v1/carbon_readings` +
+        `?sensor_position=eq.${position}` +
+        `&select=*` +
+        `&order=created_at.desc` +
+        `&limit=${limit}`;
+
+      const res = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch list ${position}: ${res.status}`);
+      }
+
+      const data = await res.json();
+      return data || [];
+    }
+
+    function findClosestOutlet(inletReading, outletReadings) {
+      if (!inletReading || !outletReadings.length) return null;
+
+      const inletTime = new Date(inletReading.created_at).getTime();
+      let best = null;
+      let bestDiff = Infinity;
+
+      for (const outlet of outletReadings) {
+        const outletTime = new Date(outlet.created_at).getTime();
+        const diff = Math.abs(inletTime - outletTime);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = outlet;
+        }
+      }
+
+      return best;
+    }
+
+    function buildPairs(inletReadings, outletReadings, maxPairs = 30) {
+      const inletAsc = [...inletReadings].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const outletAsc = [...outletReadings].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      const pairs = [];
+
+      for (const inlet of inletAsc) {
+        const outlet = findClosestOutlet(inlet, outletAsc);
+        if (!outlet) continue;
+
+        const inletTime = new Date(inlet.created_at).getTime();
+        const outletTime = new Date(outlet.created_at).getTime();
+        const timeDiffMs = Math.abs(inletTime - outletTime);
+
+        if (timeDiffMs > 20000) continue;
+
+        const inletCo2 = Number(inlet.co2 || 0);
+        const outletCo2 = Number(outlet.co2 || 0);
+
+        if (inletCo2 <= 0 || outletCo2 <= 0) continue;
+
+        let difference = inletCo2 - outletCo2;
+        let efficiency = inletCo2 > 0 ? (difference / inletCo2) * 100 : 0;
+        if (efficiency < 0) efficiency = 0;
+
+        pairs.push({
+          label: formatShortTime(inlet.created_at),
+          inletCo2,
+          outletCo2,
+          difference,
+          efficiency,
+          inletTime: inlet.created_at,
+          outletTime: outlet.created_at,
+          inletTs: inletTime,
+          outletTs: outletTime
+        });
+      }
+
+      return pairs.slice(-maxPairs);
+    }
+
+    function calculate10MinuteAverage(pairs) {
+      if (!pairs.length) return 0;
+
+      const latestTs = Math.max(...pairs.map(p => p.inletTs));
+      const tenMinutesAgo = latestTs - (10 * 60 * 1000);
+
+      const recent = pairs.filter(p => p.inletTs >= tenMinutesAgo);
+
+      if (!recent.length) return 0;
+
+      const sum = recent.reduce((acc, p) => acc + p.efficiency, 0);
+      return sum / recent.length;
+    }
+
+    function calculateExperimentDuration(pairs) {
+      if (!pairs.length) return { durationMs: 0, start: null, end: null };
+
+      const startTs = Math.min(...pairs.map(p => p.inletTs));
+      const endTs = Math.max(...pairs.map(p => Math.max(p.inletTs, p.outletTs)));
+
+      return {
+        durationMs: endTs - startTs,
+        start: startTs,
+        end: endTs
+      };
+    }
+
+    function renderChart(pairs) {
+      const ctx = document.getElementById("historyChart").getContext("2d");
+
+      const labels = pairs.map(p => p.label);
+      const inletData = pairs.map(p => p.inletCo2);
+      const outletData = pairs.map(p => p.outletCo2);
+      const efficiencyData = pairs.map(p => Number(p.efficiency.toFixed(2)));
+
+      if (historyChart) {
+        historyChart.destroy();
+      }
+
+      historyChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "CO₂ الدخول",
+              data: inletData,
+              borderColor: "#38bdf8",
+              backgroundColor: "rgba(56,189,248,0.18)",
+              tension: 0.25,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 3,
+              yAxisID: "y"
+            },
+            {
+              label: "CO₂ الخروج",
+              data: outletData,
+              borderColor: "#f59e0b",
+              backgroundColor: "rgba(245,158,11,0.18)",
+              tension: 0.25,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 3,
+              yAxisID: "y"
+            },
+            {
+              label: "الكفاءة %",
+              data: efficiencyData,
+              borderColor: "#22c55e",
+              backgroundColor: "rgba(34,197,94,0.18)",
+              tension: 0.25,
+              fill: false,
+              borderWidth: 3,
+              pointRadius: 3,
+              yAxisID: "y1"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: "#f8fafc",
+                font: {
+                  size: 13
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#cbd5e1" },
+              grid: { color: "rgba(255,255,255,0.08)" }
+            },
+            y: {
+              position: "left",
+              ticks: { color: "#cbd5e1" },
+              grid: { color: "rgba(255,255,255,0.08)" },
+              title: {
+                display: true,
+                text: "CO₂ ppm",
+                color: "#cbd5e1"
+              }
+            },
+            y1: {
+              position: "right",
+              ticks: { color: "#86efac" },
+              grid: { drawOnChartArea: false },
+              title: {
+                display: true,
+                text: "الكفاءة %",
+                color: "#86efac"
+              },
+              min: 0
+            }
+          }
+        }
+      });
+    }
+
     async function loadData() {
       const status = document.getElementById("status");
 
       try {
         status.textContent = "جاري تحديث البيانات...";
 
-        const [inlet, outlet] = await Promise.all([
+        const [inlet, outlet, inletList, outletList] = await Promise.all([
           fetchLatestReading("inlet"),
-          fetchLatestReading("outlet")
+          fetchLatestReading("outlet"),
+          fetchReadings("inlet", 120),
+          fetchReadings("outlet", 120)
         ]);
 
         if (!inlet || !outlet) {
@@ -249,14 +565,32 @@
 
         if (efficiency < 0) efficiency = 0;
 
+        const pairs = buildPairs(inletList, outletList, 30);
+        const avgEfficiency10m = calculate10MinuteAverage(pairs);
+        const exp = calculateExperimentDuration(pairs);
+
         document.getElementById("inletCo2").innerHTML = `${inletCo2} <span class="unit">ppm</span>`;
         document.getElementById("outletCo2").innerHTML = `${outletCo2} <span class="unit">ppm</span>`;
         document.getElementById("difference").innerHTML = `${difference} <span class="unit">ppm</span>`;
         document.getElementById("efficiency").innerHTML = `${efficiency.toFixed(2)} <span class="unit">%</span>`;
+        document.getElementById("avgEfficiency10m").innerHTML = `${avgEfficiency10m.toFixed(2)} <span class="unit">%</span>`;
+        document.getElementById("experimentDuration").textContent = formatDuration(exp.durationMs);
+
+        setValueColor("inletCo2", co2Class(inletCo2));
+        setValueColor("outletCo2", co2Class(outletCo2));
+        setValueColor("difference", differenceClass(Math.abs(difference)));
+        setValueColor("efficiency", efficiencyClass(efficiency));
+        setValueColor("avgEfficiency10m", efficiencyClass(avgEfficiency10m));
+        setValueColor("temperature", tempClass(Number(outlet.temperature || 0)));
+        setValueColor("humidity", humidityClass(Number(outlet.humidity || 0)));
 
         const effStatus = document.getElementById("efficiencyStatus");
         effStatus.textContent = efficiencyText(efficiency);
         effStatus.className = `sub ${efficiencyClass(efficiency)}`;
+
+        const avgEffStatus = document.getElementById("avgEfficiency10mStatus");
+        avgEffStatus.textContent = `متوسط آخر 10 دقائق`;
+        avgEffStatus.className = `sub ${efficiencyClass(avgEfficiency10m)}`;
 
         document.getElementById("temperature").innerHTML =
           `${outlet.temperature != null ? Number(outlet.temperature).toFixed(2) : "--"} <span class="unit">°C</span>`;
@@ -281,6 +615,14 @@
           outlet.humidity != null ? Number(outlet.humidity).toFixed(2) : "--";
         document.getElementById("outletTableTime").textContent = formatTime(outlet.created_at);
 
+        if (exp.start && exp.end) {
+          document.getElementById("experimentWindow").textContent =
+            `من ${formatTime(exp.start)} إلى ${formatTime(exp.end)}`;
+        } else {
+          document.getElementById("experimentWindow").textContent = "من أول قراءة إلى آخر قراءة";
+        }
+
+        renderChart(pairs);
         status.textContent = "تم التحديث بنجاح";
       } catch (err) {
         console.error(err);
